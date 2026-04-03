@@ -126,6 +126,8 @@ const name =
 
 这种设计的思路是：**越具体的配置优先级越高**。全局配置覆盖默认值，Agent 特定配置覆盖全局配置。
 
+![](diagrams/ch04_priorityChain.png)
+
 ## 4.4 Prompt 组装流程
 
 当一条消息到达 Gateway 时，System Prompt 的组装过程是怎样的？
@@ -171,6 +173,51 @@ function buildAgentMessageFromConversationEntries(entries) {
 ```
 
 核心思想是：**把多轮对话格式化为"sender: body"的文本序列，让 AI 能理解对话的来龙去脉**。
+
+### 4.4.1 BOOT.md — 第一天上班的任务清单
+
+除了四个持续存在的 Markdown 文件，OpenClaw 还有一个特殊的文件：**BOOT.md**。
+
+如果说 SOUL.md 是"员工手册"，MEMORY.md 是"常客本"，那 BOOT.md 就是"第一天上班的任务清单"。每次 Gateway 启动时，AI 会自动读取并执行 BOOT.md 中的指令。
+
+从 `src/gateway/boot.ts` 源码中可以看到启动流程：
+
+```typescript
+async function runBootOnce(params) {
+  // 1. 从工作目录加载 BOOT.md
+  const bootContent = await loadBootMd(params.workspacePath);
+  if (!bootContent) return;  // 没有 BOOT.md 就跳过
+
+  // 2. 构建 Boot Prompt
+  const bootPrompt = buildBootPrompt(bootContent);
+
+  // 3. 执行 Agent 命令（AI 处理 Boot 指令）
+  await agentCommand({ prompt: bootPrompt, ... });
+
+  // 4. 恢复主 Session 映射
+  await restoreMainSessionMapping(params);
+}
+```
+
+这个流程就像新员工入职第一天的场景：
+
+1. HR 递给你一份"入职任务单"（加载 BOOT.md）
+2. 你读一遍，理解要做什么（buildBootPrompt）
+3. 你开始执行任务（agentCommand）
+4. 完成后回到正常工作状态（restoreMainSessionMapping）
+
+一个典型的 BOOT.md 可能长这样：
+
+```markdown
+# Boot Tasks
+
+1. 检查今天的天气预报，如果有雨提醒用户带伞
+2. 查看日历，列出今天的会议安排
+3. 检查 Gmail 收件箱，总结未读邮件
+4. 确认所有 Channel 连接正常
+```
+
+每次 Gateway 重启（比如服务器重启、配置更新后），BOOT.md 都会重新执行。这意味着你可以用它来做"启动时的自动化检查"——确保 AI 助手每次上线都做好准备工作。
 
 ## 4.5 和 Claude Code 的对比
 
