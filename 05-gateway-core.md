@@ -2,7 +2,7 @@
 
 > 每秒处理数千条消息的"分拣中心"，靠的是一个 150ms 的节流阀。
 
-## 4.1 从上一章到这里
+## 5.1 从上一章到这里
 
 上一章我们看了 System Prompt——AI 的"员工手册"。现在让我们深入 OpenClaw 的心脏：Gateway（网关）。
 
@@ -147,6 +147,36 @@ chatRunState.deltaSentAt.delete(clientRunId);
 
 这确保用户能看到 AI 的**完整**回复，不会因为节流丢失最后的几个字。
 
+### 并发控制：每个会话的运行队列
+
+当同一个用户连续发多条消息时，Gateway 不会同时启动多个 LLM 调用——那会导致回复乱序。相反，它使用**每会话队列**来保证顺序：
+
+```typescript
+// ChatRunRegistry 的核心逻辑
+function enqueue(sessionKey, runId) {
+  const queue = queues.get(sessionKey);
+  queue.add({ sessionKey, clientRunId: runId });
+  // 如果队列只有一个（没有正在运行的），立即启动
+  if (queue.size() === 1) {
+    startRun(queue.peek());
+  }
+  // 否则排队等待
+}
+```
+
+这就像银行柜台的排队系统：
+- 每个窗口（会话）有自己的排队号码
+- 同一个窗口同时只服务一个人（一次只运行一个 LLM 调用）
+- 上一个人办完业务，才叫下一个号
+
+这种设计保证了：**用户看到的 AI 回复永远是按消息顺序的**——不会出现"先回答第二个问题，再回答第一个问题"的混乱情况。
+
+`ChatRunRegistry` 支持的操作：
+- `add(entry)`：加入队列
+- `peek()`：看队列头部（当前正在运行的）
+- `shift()`：取出并移除头部
+- `remove(runId)`：取消特定的运行
+
 ## 5.4 会话状态管理
 
 Gateway 需要同时管理大量并发的 Agent 运行。它用几个关键的注册表（registry，即记录"谁在关注什么"的数据结构）来实现：
@@ -200,7 +230,34 @@ Gateway 启动时要经过一系列步骤，从 `server-startup.ts` 中可以看
 11. 检查重启哨兵（restart sentinel，处理优雅重启）
 ```
 
+![](diagrams/ch05_startup_seq.png)
+
 这个启动序列的设计原则是：**不阻塞主流程**。每一步都是独立的，某一步失败不会阻止后续步骤。比如 Gmail Watcher 启动失败了，其他 Channel 照样可以正常工作。
+
+### WebSocket 连接生命周期
+
+一个 WebSocket 连接从建立到断开，经历以下状态：
+
+```
+连接建立 → 身份验证 → 订阅会话 → 接收事件 → 心跳维持 → 断开/重连
+```
+
+**连接建立**：客户端通过 `ws://host:port/ws` 发起 WebSocket 握手。Gateway 接受连接后分配一个唯一的 `connId`。
+
+**身份验证**：连接建立后，客户端需要发送认证信息。Gateway 验证 token 后才允许后续操作。
+
+**订阅会话**：客户端告诉 Gateway "我想关注哪些会话的消息"。这通过 `SessionMessageSubscriberRegistry` 管理——每个连接可以订阅多个会话。
+
+**接收事件**：一旦订阅完成，客户端就能收到三种事件：
+- Chat delta（AI 回复片段）
+- Tool events（工具调用状态）
+- Lifecycle events（运行开始/结束）
+
+**心跳维持**：WebSocket 连接可能因为网络问题悄悄断开（半开连接）。Gateway 定期发送 ping 帧，如果客户端没有 pong 回应，就认为连接已死，触发清理。
+
+**断开/重连**：当连接断开时，Gateway 清理该连接的所有订阅。客户端会尝试重连——重连成功后，需要重新订阅之前关注的会话。
+
+这个生命周期就像打电话：拨号（连接）→ 确认对方身份（认证）→ 开始聊（订阅）→ 定期"喂？还在吗？"（心跳）→ 挂断（断开）。
 
 ## 5.6 配置热重载
 

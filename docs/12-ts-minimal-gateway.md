@@ -36,6 +36,8 @@
 - 配置热重载（第 5 章已讲）
 - Context Engine 记忆系统（第 10 章已讲）
 
+![](diagrams/ch06_adapter_pattern.png)
+
 确保你的环境有 Node.js（建议 18+）和 TypeScript。创建一个新目录，初始化项目：
 
 ```bash

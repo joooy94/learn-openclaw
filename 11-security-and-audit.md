@@ -42,6 +42,8 @@ src/security/
 | `secret-equal.ts` | 密码验证窗口 | 密码比较时的时序攻击 |
 | `windows-acl.ts` | Windows 专属门禁 | Windows 系统的文件权限 |
 
+![](diagrams/ch11_security_layers.png)
+
 接下来，我们挑最重要的几个深入看看。
 
 ## 11.3 Dangerous Tools 过滤

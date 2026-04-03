@@ -461,6 +461,82 @@ def ch10_memory_arch():
     save(dot, "ch10_memory_arch")
 
 
+# == 第4章新增配图 ==
+
+def ch04_priority_chain():
+    """第4章: 身份解析优先级链"""
+    dot = make_dot("ch04_priority_chain", "身份解析: 谁说了算？")
+    dot.attr(rankdir="TB", nodesep="0.3", ranksep="0.4")
+
+    node(dot, "config", "1. config.json\nui.assistant\n全局配置", COLORS["core"])
+    node(dot, "agent", "2. agents 配置\nagents.list[id]\n特定 Agent 配置", COLORS["llm"])
+    node(dot, "workspace", "3. workspace 文件\nIDENTITY.md\n工作目录身份", COLORS["channel"])
+    node(dot, "default", "4. 默认值\n\"Assistant\"\n兜底", "#95A5A6")
+    node(dot, "result", "最终身份\nname + avatar + emoji", COLORS["data"])
+
+    edge(dot, "config", "agent", "未定义?")
+    edge(dot, "agent", "workspace", "未定义?")
+    edge(dot, "workspace", "default", "未定义?")
+    edge(dot, "default", "result", "")
+
+    save(dot, "ch04_priority_chain")
+
+
+# == 第5章新增配图 ==
+
+def ch05_startup_seq():
+    """第5章: Gateway 启动序列"""
+    dot = make_dot("ch05_startup_seq", "Gateway 启动序列 (容错设计)")
+    dot.attr(rankdir="TB", nodesep="0.25", ranksep="0.3")
+
+    steps = [
+        ("s1", "1. 清理锁文件\n防止死锁", COLORS["security"]),
+        ("s2", "2. Gmail Watcher\n邮件监控", COLORS["hook"]),
+        ("s3", "3. Hook 加载\n内部处理器", COLORS["tool"]),
+        ("s4", "4. 模型预热\nprewarm", COLORS["llm"]),
+        ("s5", "5. Channel 启动\n连接所有平台", COLORS["channel"]),
+        ("s6", "6. Plugin 服务\n扩展功能", COLORS["tool"]),
+        ("s7", "7. QMD 记忆后端\n长期存储", COLORS["memory"]),
+        ("s8", "8. 就绪!\n开始接受请求", COLORS["core"]),
+    ]
+
+    for name, label, color in steps:
+        node(dot, name, label, color)
+
+    for i in range(len(steps) - 1):
+        edge(dot, steps[i][0], steps[i+1][0])
+
+    # 非阻塞标注
+    dot.node("note", "每步独立\n失败不阻塞后续", shape="note", style="filled", fillcolor="#FDEBD0", fontname="Arial", fontsize="11", fontcolor="#7F8C8D")
+    edge(dot, "note", "s5", "如 Gmail 失败\nChannel 照常启动", style="dashed", color="#BDC3C7")
+
+    save(dot, "ch05_startup_seq")
+
+
+# == 第11章新增配图 ==
+
+def ch11_security_layers():
+    """第11章: 安全防御分层"""
+    dot = make_dot("ch11_security_layers", "安全架构: 多层防御")
+    dot.attr(rankdir="TB", nodesep="0.3", ranksep="0.4")
+
+    # 外层
+    node(dot, "allowlist", "Allowlist 白名单\n谁能和 AI 对话?\npairing / open / disabled", COLORS["channel"])
+    node(dot, "danger", "Dangerous Tools 过滤\n5 + 10 项危险工具\n执行命令/写文件/删文件", COLORS["security"])
+    node(dot, "scanner", "Skill Scanner\n安装前扫描\n防止恶意插件", COLORS["tool"])
+    node(dot, "external", "External Content\n防 Prompt Injection\n防 SSRF", COLORS["llm"])
+    node(dot, "audit", "Audit Log 审计日志\n记录一切操作\n事后追溯", COLORS["data"])
+    node(dot, "safe", "Safe Internal\n经过所有防线\n安全执行", COLORS["core"])
+
+    edge(dot, "allowlist", "danger", "")
+    edge(dot, "danger", "scanner", "")
+    edge(dot, "scanner", "external", "")
+    edge(dot, "external", "safe", "")
+    edge(dot, "safe", "audit", "记录操作")
+
+    save(dot, "ch11_security_layers")
+
+
 # == 主入口 ==
 
 ALL_DIAGRAMS = {
@@ -487,6 +563,12 @@ ALL_DIAGRAMS = {
     "ch09_hook_chain": ch09_hook_chain,
     # 第10章
     "ch10_memory_arch": ch10_memory_arch,
+    # 第4章 (新增)
+    "ch04_priority_chain": ch04_priority_chain,
+    # 第5章 (新增)
+    "ch05_startup_seq": ch05_startup_seq,
+    # 第11章 (新增)
+    "ch11_security_layers": ch11_security_layers,
 }
 
 
